@@ -20,7 +20,9 @@ service cloud.firestore {
 
     match /surveyOrganizations/{orgId} {
       allow read: if isSignedIn() && userOrgId() == orgId;
-      allow write: if false;
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() && userOrgId() == orgId;
+      allow delete: if false;
     }
 
     match /surveyForms/{formId} {
