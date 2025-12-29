@@ -1,0 +1,42 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function userDoc() {
+      return get(/databases/$(database)/documents/surveyUsers/$(request.auth.uid));
+    }
+
+    function userOrgId() {
+      return isSignedIn() ? userDoc().data.orgId : null;
+    }
+
+    match /surveyUsers/{userId} {
+      allow read, write: if isSignedIn() && request.auth.uid == userId;
+    }
+
+    match /surveyOrganizations/{orgId} {
+      allow read: if isSignedIn() && userOrgId() == orgId;
+      allow write: if false;
+    }
+
+    match /surveyForms/{formId} {
+      allow read: if resource.data.status == "active"
+        || (isSignedIn() && userOrgId() == resource.data.orgId);
+      allow create: if isSignedIn() && userOrgId() == request.resource.data.orgId;
+      allow update, delete: if isSignedIn() && userOrgId() == resource.data.orgId;
+    }
+
+    match /surveyResponses/{responseId} {
+      allow read: if isSignedIn() && userOrgId() == resource.data.orgId;
+      allow create: if request.resource.data.formId != null
+        && get(/databases/$(database)/documents/surveyForms/$(request.resource.data.formId)).data.status == "active"
+        && request.resource.data.orgId
+          == get(/databases/$(database)/documents/surveyForms/$(request.resource.data.formId)).data.orgId;
+      allow update, delete: if false;
+    }
+  }
+}
