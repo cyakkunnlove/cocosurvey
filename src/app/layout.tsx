@@ -27,7 +27,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ja">
+    <html lang="ja" suppressHydrationWarning>
       <body className={`${notoSans.variable} ${outfit.variable} antialiased`}>
         <AuthProvider>{children}</AuthProvider>
       </body>
