@@ -8,6 +8,10 @@
   --primary: #0f766e;
   --primary-dark: #0f5c56;
   --accent: #e6f1ef;
+  --font-noto-sans: "Hiragino Sans", "Yu Gothic Medium", "Yu Gothic",
+    "Meiryo", sans-serif;
+  --font-outfit: "Avenir Next", "Segoe UI", "Hiragino Sans", "Yu Gothic",
+    "Meiryo", sans-serif;
 }
 
 @theme inline {
