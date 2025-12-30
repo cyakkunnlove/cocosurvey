@@ -251,7 +251,15 @@ export default function EditFormPage() {
                     checked={aiEnabled}
                     onChange={(event) => setAiEnabled(event.target.checked)}
                   />
-                  AI分析を有効化する
+                  <span className="flex items-center gap-1">
+                    AI分析を有効化する
+                    <span
+                      title="自由記述の内容をAIが要約・感情判定します。結果は回答一覧に表示されます。"
+                      className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-black/10 text-[10px] text-[var(--muted)]"
+                    >
+                      ?
+                    </span>
+                  </span>
                 </label>
                 {aiEnabled && (
                   <div className="grid gap-3 md:grid-cols-2">
@@ -261,11 +269,25 @@ export default function EditFormPage() {
                         checked={aiOverallEnabled}
                         onChange={(event) => setAiOverallEnabled(event.target.checked)}
                       />
-                      全体評価（1-10）を付与
+                      <span className="flex items-center gap-1">
+                        全体評価（1-10）を付与
+                        <span
+                          title="回答全体を10段階で評価します。説明文や選択式の回答も含めた総合評価です。"
+                          className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-black/10 text-[10px] text-[var(--muted)]"
+                        >
+                          ?
+                        </span>
+                      </span>
                     </label>
                     <div>
-                      <label className="text-xs font-semibold text-[var(--muted)]">
+                      <label className="flex items-center gap-1 text-xs font-semibold text-[var(--muted)]">
                         信頼度しきい値
+                        <span
+                          title="AIの判定がどれだけ確からしいかを示す値です。低い場合は「要確認」になります。"
+                          className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-black/10 text-[10px] text-[var(--muted)]"
+                        >
+                          ?
+                        </span>
                       </label>
                       <input
                         type="number"
