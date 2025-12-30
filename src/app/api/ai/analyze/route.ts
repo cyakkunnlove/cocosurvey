@@ -29,11 +29,11 @@ const clamp = (value: number, min: number, max: number) =>
   Math.min(max, Math.max(min, value));
 
 export async function POST(request: Request) {
-  const apiKey = process.env.GEMINI_API_KEY;
-  const model = process.env.GEMINI_MODEL || "gemini-1.5-flash";
+  const apiKey = process.env.OPENAI_API_KEY;
+  const model = process.env.OPENAI_MODEL || "gpt-5-nano";
   if (!apiKey) {
     return NextResponse.json(
-      { error: "GEMINI_API_KEY is not configured" },
+      { error: "OPENAI_API_KEY is not configured" },
       { status: 500 }
     );
   }
@@ -78,38 +78,77 @@ export async function POST(request: Request) {
     `REQUEST: sentiment=${wantsSentiment}, overallScore=${wantsOverall}`,
   ].join("\n");
 
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [
-          {
-            role: "user",
-            parts: [{ text: `${instructions}\n\n${inputText}` }],
-          },
-        ],
-        generationConfig: {
-          temperature: 0.1,
-          maxOutputTokens: 256,
+  const response = await fetch("https://api.openai.com/v1/responses", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model,
+      input: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "input_text",
+              text: `${instructions}\n\n${inputText}`,
+            },
+          ],
         },
-      }),
-    }
-  );
+      ],
+      response_format: {
+        type: "json_schema",
+        json_schema: {
+          name: "survey_analysis",
+          strict: true,
+          schema: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              overallScore: { type: ["integer", "null"] },
+              sentimentLabel: {
+                type: "string",
+                enum: ["positive", "neutral", "negative", "needs_review"],
+              },
+              confidence: { type: "number" },
+              keywords: {
+                type: "array",
+                items: { type: "string" },
+                maxItems: 6,
+              },
+            },
+            required: ["overallScore", "sentimentLabel", "confidence", "keywords"],
+          },
+        },
+      },
+      temperature: 0.1,
+      max_output_tokens: 256,
+    }),
+  });
 
   if (!response.ok) {
     const errorText = await response.text();
     return NextResponse.json(
-      { error: "Gemini API error", detail: errorText },
+      { error: "OpenAI API error", detail: errorText },
       { status: 502 }
     );
   }
 
   const data = await response.json();
-  const rawText =
-    data?.candidates?.[0]?.content?.parts?.map((part: any) => part?.text ?? "").join("") ||
-    "";
+  const rawText = (() => {
+    const output = Array.isArray(data?.output) ? data.output : [];
+    const texts: string[] = [];
+    output.forEach((item: any) => {
+      const content = Array.isArray(item?.content) ? item.content : [];
+      content.forEach((part: any) => {
+        if (part?.type === "output_text" && typeof part.text === "string") {
+          texts.push(part.text);
+        }
+      });
+    });
+    return texts.join("");
+  })();
   const parsed = extractJson(rawText);
 
   if (!parsed) {
