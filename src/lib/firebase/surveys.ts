@@ -42,6 +42,18 @@ const toDate = (value: unknown): Date => {
   return new Date();
 };
 
+const sanitizeFields = (fields: SurveyField[]) =>
+  fields.map((field) => {
+    if (field.type === "single_select" || field.type === "multi_select") {
+      return {
+        ...field,
+        options: (field.options ?? []).filter((option) => option.trim() !== ""),
+      };
+    }
+    const { options, ...rest } = field;
+    return rest;
+  });
+
 export async function createOrganization(name: string, ownerUid: string) {
   const orgRef = doc(collection(db, ORG_COLLECTION));
   await setDoc(orgRef, {
@@ -97,6 +109,7 @@ export async function createForm(input: {
   const formRef = doc(collection(db, FORMS_COLLECTION));
   await setDoc(formRef, {
     ...input,
+    fields: sanitizeFields(input.fields),
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
@@ -110,6 +123,7 @@ export async function updateForm(
   const formRef = doc(db, FORMS_COLLECTION, formId);
   await updateDoc(formRef, {
     ...updates,
+    ...(updates.fields ? { fields: sanitizeFields(updates.fields) } : {}),
     updatedAt: serverTimestamp(),
   });
 }
