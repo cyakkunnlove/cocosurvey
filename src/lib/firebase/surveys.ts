@@ -105,6 +105,9 @@ export async function createForm(input: {
   status: "draft" | "active";
   shareId: string;
   fields: SurveyField[];
+  aiEnabled?: boolean;
+  aiOverallEnabled?: boolean;
+  aiMinConfidence?: number;
   notificationEmail?: string;
   webhookUrl?: string;
   slackWebhookUrl?: string;
@@ -129,6 +132,9 @@ export async function updateForm(
       | "description"
       | "status"
       | "fields"
+      | "aiEnabled"
+      | "aiOverallEnabled"
+      | "aiMinConfidence"
       | "notificationEmail"
       | "webhookUrl"
       | "slackWebhookUrl"
@@ -157,6 +163,9 @@ export async function listForms(orgId: string): Promise<SurveyForm[]> {
       status: data.status === "active" ? "active" : "draft",
       shareId: String(data.shareId ?? ""),
       fields: Array.isArray(data.fields) ? data.fields : [],
+      aiEnabled: Boolean(data.aiEnabled),
+      aiOverallEnabled: Boolean(data.aiOverallEnabled),
+      aiMinConfidence: typeof data.aiMinConfidence === "number" ? data.aiMinConfidence : 0.6,
       notificationEmail: typeof data.notificationEmail === "string" ? data.notificationEmail : "",
       webhookUrl: typeof data.webhookUrl === "string" ? data.webhookUrl : "",
       slackWebhookUrl: typeof data.slackWebhookUrl === "string" ? data.slackWebhookUrl : "",
@@ -182,6 +191,9 @@ export async function getFormById(formId: string): Promise<SurveyForm | null> {
     status: data.status === "active" ? "active" : "draft",
     shareId: String(data.shareId ?? ""),
     fields: Array.isArray(data.fields) ? data.fields : [],
+    aiEnabled: Boolean(data.aiEnabled),
+    aiOverallEnabled: Boolean(data.aiOverallEnabled),
+    aiMinConfidence: typeof data.aiMinConfidence === "number" ? data.aiMinConfidence : 0.6,
     notificationEmail: typeof data.notificationEmail === "string" ? data.notificationEmail : "",
     webhookUrl: typeof data.webhookUrl === "string" ? data.webhookUrl : "",
     slackWebhookUrl: typeof data.slackWebhookUrl === "string" ? data.slackWebhookUrl : "",
@@ -210,6 +222,9 @@ export async function getFormByShareId(shareId: string): Promise<SurveyForm | nu
     status: data.status === "active" ? "active" : "draft",
     shareId: String(data.shareId ?? ""),
     fields: Array.isArray(data.fields) ? data.fields : [],
+    aiEnabled: Boolean(data.aiEnabled),
+    aiOverallEnabled: Boolean(data.aiOverallEnabled),
+    aiMinConfidence: typeof data.aiMinConfidence === "number" ? data.aiMinConfidence : 0.6,
     notificationEmail: typeof data.notificationEmail === "string" ? data.notificationEmail : "",
     webhookUrl: typeof data.webhookUrl === "string" ? data.webhookUrl : "",
     slackWebhookUrl: typeof data.slackWebhookUrl === "string" ? data.slackWebhookUrl : "",
@@ -221,12 +236,30 @@ export async function getFormByShareId(shareId: string): Promise<SurveyForm | nu
 }
 
 export async function createResponse(input: {
+  responseId: string;
   formId: string;
   orgId: string;
+  respondentId: string;
   answers: Record<string, unknown>;
+  analysis?: {
+    overallScore?: number | null;
+    sentimentLabel?: "positive" | "neutral" | "negative" | "needs_review" | null;
+    confidence?: number | null;
+    keywords?: string[];
+    model?: string;
+  };
 }) {
-  await addDoc(collection(db, RESPONSES_COLLECTION), {
-    ...input,
+  const responseRef = doc(db, RESPONSES_COLLECTION, input.responseId);
+  const existing = await getDoc(responseRef);
+  if (existing.exists()) {
+    throw new Error("このフォームは既に回答済みです。");
+  }
+  await setDoc(responseRef, {
+    formId: input.formId,
+    orgId: input.orgId,
+    respondentId: input.respondentId,
+    answers: input.answers,
+    analysis: input.analysis ?? null,
     status: "new",
     tags: [],
     memo: "",
@@ -253,6 +286,7 @@ export async function listResponses(
       id: docSnap.id,
       formId: String(data.formId ?? ""),
       orgId: String(data.orgId ?? ""),
+      respondentId: String(data.respondentId ?? ""),
       answers: data.answers ?? {},
       status: data.status === "done" ? "done" : data.status === "in_progress" ? "in_progress" : "new",
       tags: Array.isArray(data.tags) ? data.tags : [],
@@ -261,6 +295,21 @@ export async function listResponses(
       assigneeName: data.assigneeName ?? null,
       submittedAt: toDate(data.submittedAt),
       updatedAt: toDate(data.updatedAt),
+      analysis: data.analysis
+        ? {
+            overallScore:
+              typeof data.analysis.overallScore === "number"
+                ? data.analysis.overallScore
+                : null,
+            sentimentLabel: data.analysis.sentimentLabel ?? null,
+            confidence:
+              typeof data.analysis.confidence === "number"
+                ? data.analysis.confidence
+                : null,
+            keywords: Array.isArray(data.analysis.keywords) ? data.analysis.keywords : [],
+            model: typeof data.analysis.model === "string" ? data.analysis.model : "",
+          }
+        : undefined,
     } as SurveyResponse;
   });
   return items.sort((a, b) => b.submittedAt.getTime() - a.submittedAt.getTime());

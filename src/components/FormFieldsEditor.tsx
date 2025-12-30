@@ -110,6 +110,19 @@ export default function FormFieldsEditor({
             <span>必須にする</span>
           </div>
 
+          {(field.type === "short_text" || field.type === "long_text") && (
+            <div className="mt-2 flex items-center gap-3 text-xs text-[var(--muted)]">
+              <input
+                type="checkbox"
+                checked={Boolean(field.aiEnabled)}
+                onChange={(event) =>
+                  updateField(field.id, { aiEnabled: event.target.checked })
+                }
+              />
+              <span>AI分析対象にする</span>
+            </div>
+          )}
+
           {(field.type === "single_select" || field.type === "multi_select") && (
             <div className="mt-3">
               <label className="text-xs font-semibold text-[var(--muted)]">

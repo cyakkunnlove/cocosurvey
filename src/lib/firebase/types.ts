@@ -14,6 +14,7 @@ export interface SurveyField {
   type: FieldType;
   required: boolean;
   options?: string[];
+  aiEnabled?: boolean;
   visibility?: {
     dependsOnId: string;
     operator: "equals" | "not_equals" | "includes" | "checked";
@@ -35,6 +36,9 @@ export interface SurveyForm {
   status: "draft" | "active";
   shareId: string;
   fields: SurveyField[];
+  aiEnabled?: boolean;
+  aiOverallEnabled?: boolean;
+  aiMinConfidence?: number;
   notificationEmail?: string;
   webhookUrl?: string;
   slackWebhookUrl?: string;
@@ -48,6 +52,7 @@ export interface SurveyResponse {
   id: string;
   formId: string;
   orgId: string;
+  respondentId: string;
   answers: Record<string, AnswerValue>;
   submittedAt: Date;
   status: "new" | "in_progress" | "done";
@@ -56,6 +61,13 @@ export interface SurveyResponse {
   assigneeUid?: string | null;
   assigneeName?: string | null;
   updatedAt?: Date;
+  analysis?: {
+    overallScore?: number | null;
+    sentimentLabel?: "positive" | "neutral" | "negative" | "needs_review" | null;
+    confidence?: number | null;
+    keywords?: string[];
+    model?: string;
+  };
 }
 
 export interface UserProfile {

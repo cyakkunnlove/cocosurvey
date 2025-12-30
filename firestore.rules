@@ -35,6 +35,9 @@ service cloud.firestore {
     match /surveyResponses/{responseId} {
       allow read: if isSignedIn() && userOrgId() == resource.data.orgId;
       allow create: if request.resource.data.formId != null
+        && request.resource.data.respondentId is string
+        && (request.resource.data.formId + "_" + request.resource.data.respondentId) == responseId
+        && !exists(/databases/$(database)/documents/surveyResponses/$(responseId))
         && get(/databases/$(database)/documents/surveyForms/$(request.resource.data.formId)).data.status == "active"
         && request.resource.data.orgId
           == get(/databases/$(database)/documents/surveyForms/$(request.resource.data.formId)).data.orgId;

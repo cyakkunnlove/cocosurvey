@@ -15,6 +15,8 @@ export default function PublicSurveyPage() {
   const [error, setError] = useState("");
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [submitted, setSubmitted] = useState(false);
+  const [respondentId, setRespondentId] = useState<string | null>(null);
+  const [alreadyResponded, setAlreadyResponded] = useState(false);
 
   useEffect(() => {
     if (!shareId) return;
@@ -23,6 +25,24 @@ export default function PublicSurveyPage() {
       .then(setForm)
       .finally(() => setLoading(false));
   }, [shareId]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const stored = window.localStorage.getItem("cocosurvey_respondent_id");
+    if (stored) {
+      setRespondentId(stored);
+      return;
+    }
+    const next = crypto.randomUUID();
+    window.localStorage.setItem("cocosurvey_respondent_id", next);
+    setRespondentId(next);
+  }, []);
+
+  useEffect(() => {
+    if (!form || typeof window === "undefined") return;
+    const key = `cocosurvey_response_${form.id}`;
+    setAlreadyResponded(Boolean(window.localStorage.getItem(key)));
+  }, [form]);
 
   const handleAnswerChange = (fieldId: string, value: AnswerValue) => {
     setAnswers((prev) => ({ ...prev, [fieldId]: value }));
@@ -97,9 +117,33 @@ export default function PublicSurveyPage() {
     return "";
   };
 
+  const formatAnswer = (value: AnswerValue) => {
+    if (Array.isArray(value)) return value.join(" / ");
+    if (value === true) return "はい";
+    if (value === false) return "いいえ";
+    return value ? String(value) : "";
+  };
+
+  const buildTextForAi = (targetFields: SurveyField[]) =>
+    targetFields
+      .map((field) => {
+        const value = formatAnswer(answers[field.id]);
+        return value ? `Q:${field.label}\nA:${value}` : "";
+      })
+      .filter(Boolean)
+      .join("\n\n");
+
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!form) return;
+    if (alreadyResponded) {
+      setError("このフォームは既に回答済みです。");
+      return;
+    }
+    if (!respondentId) {
+      setError("回答者IDの取得に失敗しました。再読み込みしてください。");
+      return;
+    }
     const nextErrors: Record<string, string> = {};
     visibleFields.forEach((field) => {
       const message = validateField(field, answers[field.id]);
@@ -111,12 +155,63 @@ export default function PublicSurveyPage() {
       return;
     }
     setError("");
-    await createResponse({
-      formId: form.id,
-      orgId: form.orgId,
-      answers,
-    });
-    setSubmitted(true);
+    let analysis: {
+      overallScore?: number | null;
+      sentimentLabel?: "positive" | "neutral" | "negative" | "needs_review" | null;
+      confidence?: number | null;
+      keywords?: string[];
+      model?: string;
+    } | null = null;
+
+    if (form.aiEnabled) {
+      const freeTextFields = form.fields.filter(
+        (field) =>
+          field.aiEnabled && (field.type === "short_text" || field.type === "long_text")
+      );
+      const freeText = buildTextForAi(freeTextFields);
+      const overallText = form.aiOverallEnabled ? buildTextForAi(form.fields) : "";
+      if (freeText || overallText) {
+        try {
+          const response = await fetch("/api/ai/analyze", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              freeText,
+              overallText,
+              wantsSentiment: Boolean(freeText),
+              wantsOverall: Boolean(overallText),
+              minConfidence: form.aiMinConfidence ?? 0.6,
+              scoreScale: 10,
+            }),
+          });
+          if (response.ok) {
+            analysis = await response.json();
+          } else {
+            analysis = { sentimentLabel: "needs_review", confidence: 0 };
+          }
+        } catch {
+          analysis = { sentimentLabel: "needs_review", confidence: 0 };
+        }
+      }
+    }
+
+    const responseId = `${form.id}_${respondentId}`;
+    try {
+      await createResponse({
+        responseId,
+        formId: form.id,
+        orgId: form.orgId,
+        respondentId,
+        answers,
+        analysis: analysis ?? undefined,
+      });
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(`cocosurvey_response_${form.id}`, "1");
+      }
+      setSubmitted(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "送信に失敗しました。");
+    }
   };
 
   if (!form) {
@@ -161,6 +256,11 @@ export default function PublicSurveyPage() {
             <p className="mt-2 text-sm text-[var(--muted)]">{form.description}</p>
           )}
           <form onSubmit={handleSubmit} className="mt-6 space-y-6">
+            {alreadyResponded && (
+              <div className="rounded-xl border border-yellow-200 bg-yellow-50 p-3 text-xs text-yellow-700">
+                このフォームは既に回答済みです。再回答する場合はブラウザの履歴を削除してください。
+              </div>
+            )}
             {error && (
               <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-600">
                 {error}
@@ -254,6 +354,7 @@ export default function PublicSurveyPage() {
             ))}
             <button
               type="submit"
+              disabled={alreadyResponded}
               className="w-full rounded-full bg-[var(--primary)] px-4 py-3 text-sm font-semibold text-white hover:bg-[var(--primary-dark)]"
             >
               送信する

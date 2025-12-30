@@ -19,6 +19,9 @@ export default function EditFormPage() {
   const [description, setDescription] = useState("");
   const [status, setStatus] = useState<"draft" | "active">("draft");
   const [fields, setFields] = useState<SurveyField[]>([]);
+  const [aiEnabled, setAiEnabled] = useState(false);
+  const [aiOverallEnabled, setAiOverallEnabled] = useState(false);
+  const [aiMinConfidence, setAiMinConfidence] = useState(0.6);
   const [notificationEmail, setNotificationEmail] = useState("");
   const [webhookUrl, setWebhookUrl] = useState("");
   const [slackWebhookUrl, setSlackWebhookUrl] = useState("");
@@ -37,6 +40,9 @@ export default function EditFormPage() {
       setDescription(data.description);
       setStatus(data.status);
       setFields(data.fields);
+      setAiEnabled(Boolean(data.aiEnabled));
+      setAiOverallEnabled(Boolean(data.aiOverallEnabled));
+      setAiMinConfidence(data.aiMinConfidence ?? 0.6);
       setNotificationEmail(data.notificationEmail ?? "");
       setWebhookUrl(data.webhookUrl ?? "");
       setSlackWebhookUrl(data.slackWebhookUrl ?? "");
@@ -65,6 +71,9 @@ export default function EditFormPage() {
         description,
         status,
         fields,
+        aiEnabled,
+        aiOverallEnabled,
+        aiMinConfidence,
         notificationEmail,
         webhookUrl,
         slackWebhookUrl,
@@ -228,6 +237,54 @@ export default function EditFormPage() {
               <div className="mt-4">
                 <FormFieldsEditor fields={fields} onChange={setFields} />
               </div>
+            </div>
+
+            <div className="rounded-2xl border border-black/10 bg-white p-6">
+              <h2 className="text-lg font-semibold">AI分析</h2>
+              <p className="mt-1 text-xs text-[var(--muted)]">
+                自由記述の感情判定や、全体評価のスコアを自動で付与します。
+              </p>
+              <div className="mt-4 space-y-3 text-sm">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={aiEnabled}
+                    onChange={(event) => setAiEnabled(event.target.checked)}
+                  />
+                  AI分析を有効化する
+                </label>
+                {aiEnabled && (
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <label className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={aiOverallEnabled}
+                        onChange={(event) => setAiOverallEnabled(event.target.checked)}
+                      />
+                      全体評価（1-10）を付与
+                    </label>
+                    <div>
+                      <label className="text-xs font-semibold text-[var(--muted)]">
+                        信頼度しきい値
+                      </label>
+                      <input
+                        type="number"
+                        step="0.05"
+                        min={0.4}
+                        max={0.95}
+                        value={aiMinConfidence}
+                        onChange={(event) =>
+                          setAiMinConfidence(Number(event.target.value) || 0.6)
+                        }
+                        className="mt-1 w-full rounded-xl border border-black/10 px-3 py-2 text-sm"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+              <p className="mt-3 text-[11px] text-[var(--muted)]">
+                ※「AI分析対象にする」を選んだ自由記述のみが解析対象になります。
+              </p>
             </div>
 
             <div className="rounded-2xl border border-black/10 bg-white p-6">

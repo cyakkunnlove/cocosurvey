@@ -15,6 +15,16 @@ const statusOptions = [
   { value: "done", label: "完了" },
 ] as const;
 
+const sentimentLabels: Record<
+  "positive" | "neutral" | "negative" | "needs_review",
+  string
+> = {
+  positive: "ポジティブ",
+  neutral: "中立",
+  negative: "ネガティブ",
+  needs_review: "要確認",
+};
+
 const positiveWords = ["満足", "良い", "便利", "助かる", "素晴らしい", "快適", "早い", "安心"];
 const negativeWords = ["不満", "悪い", "不便", "面倒", "遅い", "高い", "困る", "不安"];
 
@@ -206,6 +216,10 @@ export default function ResponsesPage() {
       "担当者",
       "タグ",
       "メモ",
+      "AIスコア",
+      "AI感情",
+      "AI信頼度",
+      "AIキーワード",
       ...form.fields.map((field) => field.label),
     ];
     const rows = responses.map((response) => {
@@ -215,6 +229,10 @@ export default function ResponsesPage() {
         response.assigneeName ?? "",
         response.tags.join(" / "),
         response.memo ?? "",
+        response.analysis?.overallScore ?? "",
+        response.analysis?.sentimentLabel ?? "",
+        response.analysis?.confidence ?? "",
+        response.analysis?.keywords?.join(" / ") ?? "",
       ];
       const answers = form.fields.map((field) =>
         formatValue(response.answers[field.id])
@@ -489,6 +507,30 @@ export default function ResponsesPage() {
                     </select>
                   </div>
                 </div>
+                {response.analysis && (
+                  <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+                    <span className="rounded-full bg-[var(--accent)] px-3 py-1 text-[var(--primary)]">
+                      AIスコア {response.analysis.overallScore ?? "-"}
+                    </span>
+                    <span className="rounded-full border border-black/10 px-3 py-1">
+                      AI感情{" "}
+                      {response.analysis.sentimentLabel
+                        ? sentimentLabels[response.analysis.sentimentLabel]
+                        : "-"}
+                    </span>
+                    <span className="rounded-full border border-black/10 px-3 py-1">
+                      信頼度{" "}
+                      {typeof response.analysis.confidence === "number"
+                        ? response.analysis.confidence.toFixed(2)
+                        : "-"}
+                    </span>
+                    {response.analysis.keywords && response.analysis.keywords.length > 0 && (
+                      <span className="rounded-full border border-black/10 px-3 py-1">
+                        {response.analysis.keywords.join(" / ")}
+                      </span>
+                    )}
+                  </div>
+                )}
 
                 <div className="mt-4 grid gap-3 md:grid-cols-2">
                   {form.fields.map((field) => (
