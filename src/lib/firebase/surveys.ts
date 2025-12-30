@@ -105,6 +105,10 @@ export async function createForm(input: {
   status: "draft" | "active";
   shareId: string;
   fields: SurveyField[];
+  notificationEmail?: string;
+  webhookUrl?: string;
+  slackWebhookUrl?: string;
+  googleSheetUrl?: string;
 }) {
   const formRef = doc(collection(db, FORMS_COLLECTION));
   await setDoc(formRef, {
@@ -118,7 +122,19 @@ export async function createForm(input: {
 
 export async function updateForm(
   formId: string,
-  updates: Partial<Pick<SurveyForm, "title" | "description" | "status" | "fields">>
+  updates: Partial<
+    Pick<
+      SurveyForm,
+      | "title"
+      | "description"
+      | "status"
+      | "fields"
+      | "notificationEmail"
+      | "webhookUrl"
+      | "slackWebhookUrl"
+      | "googleSheetUrl"
+    >
+  >
 ) {
   const formRef = doc(db, FORMS_COLLECTION, formId);
   await updateDoc(formRef, {
@@ -141,6 +157,10 @@ export async function listForms(orgId: string): Promise<SurveyForm[]> {
       status: data.status === "active" ? "active" : "draft",
       shareId: String(data.shareId ?? ""),
       fields: Array.isArray(data.fields) ? data.fields : [],
+      notificationEmail: typeof data.notificationEmail === "string" ? data.notificationEmail : "",
+      webhookUrl: typeof data.webhookUrl === "string" ? data.webhookUrl : "",
+      slackWebhookUrl: typeof data.slackWebhookUrl === "string" ? data.slackWebhookUrl : "",
+      googleSheetUrl: typeof data.googleSheetUrl === "string" ? data.googleSheetUrl : "",
       createdAt: toDate(data.createdAt),
       updatedAt: toDate(data.updatedAt),
       createdBy: String(data.createdBy ?? ""),
@@ -162,6 +182,10 @@ export async function getFormById(formId: string): Promise<SurveyForm | null> {
     status: data.status === "active" ? "active" : "draft",
     shareId: String(data.shareId ?? ""),
     fields: Array.isArray(data.fields) ? data.fields : [],
+    notificationEmail: typeof data.notificationEmail === "string" ? data.notificationEmail : "",
+    webhookUrl: typeof data.webhookUrl === "string" ? data.webhookUrl : "",
+    slackWebhookUrl: typeof data.slackWebhookUrl === "string" ? data.slackWebhookUrl : "",
+    googleSheetUrl: typeof data.googleSheetUrl === "string" ? data.googleSheetUrl : "",
     createdAt: toDate(data.createdAt),
     updatedAt: toDate(data.updatedAt),
     createdBy: String(data.createdBy ?? ""),
@@ -169,7 +193,11 @@ export async function getFormById(formId: string): Promise<SurveyForm | null> {
 }
 
 export async function getFormByShareId(shareId: string): Promise<SurveyForm | null> {
-  const q = query(collection(db, FORMS_COLLECTION), where("shareId", "==", shareId));
+  const q = query(
+    collection(db, FORMS_COLLECTION),
+    where("shareId", "==", shareId),
+    where("status", "==", "active")
+  );
   const snap = await getDocs(q);
   const docSnap = snap.docs[0];
   if (!docSnap) return null;
@@ -182,6 +210,10 @@ export async function getFormByShareId(shareId: string): Promise<SurveyForm | nu
     status: data.status === "active" ? "active" : "draft",
     shareId: String(data.shareId ?? ""),
     fields: Array.isArray(data.fields) ? data.fields : [],
+    notificationEmail: typeof data.notificationEmail === "string" ? data.notificationEmail : "",
+    webhookUrl: typeof data.webhookUrl === "string" ? data.webhookUrl : "",
+    slackWebhookUrl: typeof data.slackWebhookUrl === "string" ? data.slackWebhookUrl : "",
+    googleSheetUrl: typeof data.googleSheetUrl === "string" ? data.googleSheetUrl : "",
     createdAt: toDate(data.createdAt),
     updatedAt: toDate(data.updatedAt),
     createdBy: String(data.createdBy ?? ""),
@@ -195,12 +227,25 @@ export async function createResponse(input: {
 }) {
   await addDoc(collection(db, RESPONSES_COLLECTION), {
     ...input,
+    status: "new",
+    tags: [],
+    memo: "",
+    assigneeUid: null,
+    assigneeName: null,
     submittedAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
   });
 }
 
-export async function listResponses(formId: string): Promise<SurveyResponse[]> {
-  const q = query(collection(db, RESPONSES_COLLECTION), where("formId", "==", formId));
+export async function listResponses(
+  formId: string,
+  orgId: string
+): Promise<SurveyResponse[]> {
+  const q = query(
+    collection(db, RESPONSES_COLLECTION),
+    where("formId", "==", formId),
+    where("orgId", "==", orgId)
+  );
   const snap = await getDocs(q);
   const items = snap.docs.map((docSnap) => {
     const data = docSnap.data() as any;
@@ -209,8 +254,27 @@ export async function listResponses(formId: string): Promise<SurveyResponse[]> {
       formId: String(data.formId ?? ""),
       orgId: String(data.orgId ?? ""),
       answers: data.answers ?? {},
+      status: data.status === "done" ? "done" : data.status === "in_progress" ? "in_progress" : "new",
+      tags: Array.isArray(data.tags) ? data.tags : [],
+      memo: typeof data.memo === "string" ? data.memo : "",
+      assigneeUid: data.assigneeUid ?? null,
+      assigneeName: data.assigneeName ?? null,
       submittedAt: toDate(data.submittedAt),
+      updatedAt: toDate(data.updatedAt),
     } as SurveyResponse;
   });
   return items.sort((a, b) => b.submittedAt.getTime() - a.submittedAt.getTime());
+}
+
+export async function updateResponse(
+  responseId: string,
+  updates: Partial<
+    Pick<SurveyResponse, "status" | "tags" | "memo" | "assigneeUid" | "assigneeName">
+  >
+) {
+  const responseRef = doc(db, RESPONSES_COLLECTION, responseId);
+  await updateDoc(responseRef, {
+    ...updates,
+    updatedAt: serverTimestamp(),
+  });
 }

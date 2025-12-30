@@ -4,45 +4,110 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 
 import { createResponse, getFormByShareId } from "@/lib/firebase/surveys";
-import type { AnswerValue, SurveyForm } from "@/lib/firebase/types";
+import type { AnswerValue, SurveyField, SurveyForm } from "@/lib/firebase/types";
 
 export default function PublicSurveyPage() {
   const params = useParams();
   const shareId = params.shareId as string;
   const [form, setForm] = useState<SurveyForm | null>(null);
+  const [loading, setLoading] = useState(true);
   const [answers, setAnswers] = useState<Record<string, AnswerValue>>({});
   const [error, setError] = useState("");
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [submitted, setSubmitted] = useState(false);
 
   useEffect(() => {
     if (!shareId) return;
-    getFormByShareId(shareId).then(setForm);
+    setLoading(true);
+    getFormByShareId(shareId)
+      .then(setForm)
+      .finally(() => setLoading(false));
   }, [shareId]);
 
   const handleAnswerChange = (fieldId: string, value: AnswerValue) => {
     setAnswers((prev) => ({ ...prev, [fieldId]: value }));
+    setValidationErrors((prev) => {
+      if (!prev[fieldId]) return prev;
+      const next = { ...prev };
+      delete next[fieldId];
+      return next;
+    });
   };
 
-  const requiredMissing = useMemo(() => {
-    if (!form) return [];
-    return form.fields.filter((field) => {
-      if (!field.required) return false;
-      const value = answers[field.id];
+  const isFieldVisible = (field: SurveyField) => {
+    const visibility = field.visibility;
+    if (!visibility?.dependsOnId) return true;
+    const targetValue = answers[visibility.dependsOnId];
+    switch (visibility.operator) {
+      case "checked":
+        return targetValue === true;
+      case "includes":
+        if (Array.isArray(targetValue)) {
+          return targetValue.includes(String(visibility.value ?? ""));
+        }
+        if (typeof targetValue === "string") {
+          return targetValue.includes(String(visibility.value ?? ""));
+        }
+        return false;
+      case "not_equals":
+        return String(targetValue ?? "") !== String(visibility.value ?? "");
+      default:
+        return String(targetValue ?? "") === String(visibility.value ?? "");
+    }
+  };
+
+  const visibleFields = useMemo(
+    () => (form ? form.fields.filter((field) => isFieldVisible(field)) : []),
+    [form, answers]
+  );
+
+  const validateField = (field: SurveyField, value: AnswerValue) => {
+    if (!field.required) {
+      if (value === undefined || value === null || value === "") {
+        return "";
+      }
+    }
+    if (field.required) {
       if (field.type === "multi_select") {
-        return !Array.isArray(value) || value.length === 0;
+        if (!Array.isArray(value) || value.length === 0) return "必須項目です。";
+      } else if (field.type === "checkbox") {
+        if (value !== true) return "同意が必要です。";
+      } else if (value === undefined || value === null || value === "") {
+        return "必須項目です。";
       }
-      if (field.type === "checkbox") {
-        return value !== true;
+    }
+    const validation = field.validation;
+    if (!validation) return "";
+    if (typeof value === "string") {
+      if (validation.minLength && value.length < validation.minLength) {
+        return `最小${validation.minLength}文字以上で入力してください。`;
       }
-      return value === undefined || value === null || value === "";
-    });
-  }, [answers, form]);
+      if (validation.maxLength && value.length > validation.maxLength) {
+        return `最大${validation.maxLength}文字以内で入力してください。`;
+      }
+    }
+    if (field.type === "date" && typeof value === "string") {
+      if (validation.minDate && value < validation.minDate) {
+        return `${validation.minDate} 以降の日付を選択してください。`;
+      }
+      if (validation.maxDate && value > validation.maxDate) {
+        return `${validation.maxDate} 以前の日付を選択してください。`;
+      }
+    }
+    return "";
+  };
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!form) return;
-    if (requiredMissing.length > 0) {
-      setError("未入力の必須項目があります。");
+    const nextErrors: Record<string, string> = {};
+    visibleFields.forEach((field) => {
+      const message = validateField(field, answers[field.id]);
+      if (message) nextErrors[field.id] = message;
+    });
+    if (Object.keys(nextErrors).length > 0) {
+      setValidationErrors(nextErrors);
+      setError("入力内容を確認してください。");
       return;
     }
     setError("");
@@ -55,6 +120,13 @@ export default function PublicSurveyPage() {
   };
 
   if (!form) {
+    if (!loading) {
+      return (
+        <div className="min-h-screen bg-[var(--bg)] px-6 py-16 text-sm text-[var(--muted)]">
+          フォームが見つかりませんでした。
+        </div>
+      );
+    }
     return (
       <div className="min-h-screen bg-[var(--bg)] px-6 py-16 text-sm text-[var(--muted)]">
         読み込み中です...
@@ -94,7 +166,7 @@ export default function PublicSurveyPage() {
                 {error}
               </div>
             )}
-            {form.fields.map((field) => (
+            {visibleFields.map((field) => (
               <div key={field.id} className="space-y-2">
                 <label className="text-sm font-semibold">
                   {field.label}
@@ -174,6 +246,9 @@ export default function PublicSurveyPage() {
                     />
                     同意する
                   </label>
+                )}
+                {validationErrors[field.id] && (
+                  <p className="text-xs text-red-500">{validationErrors[field.id]}</p>
                 )}
               </div>
             ))}

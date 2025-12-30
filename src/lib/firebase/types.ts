@@ -14,6 +14,17 @@ export interface SurveyField {
   type: FieldType;
   required: boolean;
   options?: string[];
+  visibility?: {
+    dependsOnId: string;
+    operator: "equals" | "not_equals" | "includes" | "checked";
+    value?: string;
+  };
+  validation?: {
+    minLength?: number;
+    maxLength?: number;
+    minDate?: string;
+    maxDate?: string;
+  };
 }
 
 export interface SurveyForm {
@@ -24,6 +35,10 @@ export interface SurveyForm {
   status: "draft" | "active";
   shareId: string;
   fields: SurveyField[];
+  notificationEmail?: string;
+  webhookUrl?: string;
+  slackWebhookUrl?: string;
+  googleSheetUrl?: string;
   createdAt: Date;
   updatedAt: Date;
   createdBy: string;
@@ -35,6 +50,12 @@ export interface SurveyResponse {
   orgId: string;
   answers: Record<string, AnswerValue>;
   submittedAt: Date;
+  status: "new" | "in_progress" | "done";
+  tags: string[];
+  memo?: string;
+  assigneeUid?: string | null;
+  assigneeName?: string | null;
+  updatedAt?: Date;
 }
 
 export interface UserProfile {

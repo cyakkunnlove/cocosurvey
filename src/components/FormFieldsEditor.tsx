@@ -42,9 +42,14 @@ export default function FormFieldsEditor({
 
   return (
     <div className="space-y-4">
-      {fields.map((field, index) => (
-        <div key={field.id} className="rounded-2xl border border-black/10 bg-white p-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
+      {fields.map((field, index) => {
+        const dependencyOptions = fields.filter((item) => item.id !== field.id);
+        const visibility = field.visibility;
+        const validation = field.validation;
+
+        return (
+          <div key={field.id} className="rounded-2xl border border-black/10 bg-white p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
             <span className="text-xs font-semibold text-[var(--muted)]">
               質問 {index + 1}
             </span>
@@ -125,8 +130,181 @@ export default function FormFieldsEditor({
               />
             </div>
           )}
-        </div>
-      ))}
+
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            <div>
+              <label className="text-xs font-semibold text-[var(--muted)]">
+                表示条件
+              </label>
+              <select
+                value={visibility?.dependsOnId ? "conditional" : "always"}
+                onChange={(event) => {
+                  if (event.target.value === "conditional") {
+                    const defaultTarget = dependencyOptions[0]?.id ?? "";
+                    updateField(field.id, {
+                      visibility: defaultTarget
+                        ? { dependsOnId: defaultTarget, operator: "equals", value: "" }
+                        : undefined,
+                    });
+                  } else {
+                    updateField(field.id, { visibility: undefined });
+                  }
+                }}
+                className="mt-1 w-full rounded-xl border border-black/10 px-3 py-2 text-sm"
+              >
+                <option value="always">常に表示</option>
+                <option value="conditional" disabled={dependencyOptions.length === 0}>
+                  他の回答で表示
+                </option>
+              </select>
+              {dependencyOptions.length === 0 && (
+                <p className="mt-1 text-[11px] text-[var(--muted)]">
+                  先に他の質問を追加してください。
+                </p>
+              )}
+            </div>
+
+            {visibility?.dependsOnId && (
+              <div className="grid gap-2">
+                <div className="grid gap-2 md:grid-cols-2">
+                  <select
+                    value={visibility.dependsOnId}
+                    onChange={(event) =>
+                      updateField(field.id, {
+                        visibility: {
+                          ...visibility,
+                          dependsOnId: event.target.value,
+                        },
+                      })
+                    }
+                    className="w-full rounded-xl border border-black/10 px-3 py-2 text-sm"
+                  >
+                    {dependencyOptions.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.label || "（未入力）"}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    value={visibility.operator}
+                    onChange={(event) =>
+                      updateField(field.id, {
+                        visibility: {
+                          ...visibility,
+                          operator: event.target.value as typeof visibility.operator,
+                        },
+                      })
+                    }
+                    className="w-full rounded-xl border border-black/10 px-3 py-2 text-sm"
+                  >
+                    <option value="equals">一致したら表示</option>
+                    <option value="not_equals">一致しなければ表示</option>
+                    <option value="includes">含む場合に表示</option>
+                    <option value="checked">チェックされていたら表示</option>
+                  </select>
+                </div>
+                {visibility.operator !== "checked" && (
+                  <input
+                    value={visibility.value ?? ""}
+                    onChange={(event) =>
+                      updateField(field.id, {
+                        visibility: { ...visibility, value: event.target.value },
+                      })
+                    }
+                    className="w-full rounded-xl border border-black/10 px-3 py-2 text-sm"
+                    placeholder="条件値（例：初回）"
+                  />
+                )}
+              </div>
+            )}
+          </div>
+
+          {(field.type === "short_text" || field.type === "long_text") && (
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              <div>
+                <label className="text-xs font-semibold text-[var(--muted)]">
+                  最小文字数
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  value={validation?.minLength ?? ""}
+                  onChange={(event) =>
+                    updateField(field.id, {
+                      validation: {
+                        ...validation,
+                        minLength: event.target.value ? Number(event.target.value) : undefined,
+                      },
+                    })
+                  }
+                  className="mt-1 w-full rounded-xl border border-black/10 px-3 py-2 text-sm"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-[var(--muted)]">
+                  最大文字数
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  value={validation?.maxLength ?? ""}
+                  onChange={(event) =>
+                    updateField(field.id, {
+                      validation: {
+                        ...validation,
+                        maxLength: event.target.value ? Number(event.target.value) : undefined,
+                      },
+                    })
+                  }
+                  className="mt-1 w-full rounded-xl border border-black/10 px-3 py-2 text-sm"
+                />
+              </div>
+            </div>
+          )}
+
+          {field.type === "date" && (
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              <div>
+                <label className="text-xs font-semibold text-[var(--muted)]">
+                  最小日付
+                </label>
+                <input
+                  type="date"
+                  value={validation?.minDate ?? ""}
+                  onChange={(event) =>
+                    updateField(field.id, {
+                      validation: {
+                        ...validation,
+                        minDate: event.target.value || undefined,
+                      },
+                    })
+                  }
+                  className="mt-1 w-full rounded-xl border border-black/10 px-3 py-2 text-sm"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-[var(--muted)]">
+                  最大日付
+                </label>
+                <input
+                  type="date"
+                  value={validation?.maxDate ?? ""}
+                  onChange={(event) =>
+                    updateField(field.id, {
+                      validation: {
+                        ...validation,
+                        maxDate: event.target.value || undefined,
+                      },
+                    })
+                  }
+                  className="mt-1 w-full rounded-xl border border-black/10 px-3 py-2 text-sm"
+                />
+              </div>
+            </div>
+          )}
+          </div>
+        );
+      })}
 
       <div className="flex flex-wrap gap-2">
         {(Object.keys(fieldTypeLabels) as FieldType[]).map((type) => (

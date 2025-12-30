@@ -19,9 +19,14 @@ export default function EditFormPage() {
   const [description, setDescription] = useState("");
   const [status, setStatus] = useState<"draft" | "active">("draft");
   const [fields, setFields] = useState<SurveyField[]>([]);
+  const [notificationEmail, setNotificationEmail] = useState("");
+  const [webhookUrl, setWebhookUrl] = useState("");
+  const [slackWebhookUrl, setSlackWebhookUrl] = useState("");
+  const [googleSheetUrl, setGoogleSheetUrl] = useState("");
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [copied, setCopied] = useState(false);
+  const [qrCopied, setQrCopied] = useState(false);
 
   useEffect(() => {
     if (!formId) return;
@@ -32,6 +37,10 @@ export default function EditFormPage() {
       setDescription(data.description);
       setStatus(data.status);
       setFields(data.fields);
+      setNotificationEmail(data.notificationEmail ?? "");
+      setWebhookUrl(data.webhookUrl ?? "");
+      setSlackWebhookUrl(data.slackWebhookUrl ?? "");
+      setGoogleSheetUrl(data.googleSheetUrl ?? "");
     });
   }, [formId]);
 
@@ -40,12 +49,27 @@ export default function EditFormPage() {
     return `${window.location.origin}/survey/${form.shareId}`;
   }, [form]);
 
+  const qrUrl = useMemo(() => {
+    if (!shareUrl) return "";
+    const encoded = encodeURIComponent(shareUrl);
+    return `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encoded}`;
+  }, [shareUrl]);
+
   const handleSave = async () => {
     if (!form) return;
     setSaving(true);
     setMessage("");
     try {
-      await updateForm(form.id, { title, description, status, fields });
+      await updateForm(form.id, {
+        title,
+        description,
+        status,
+        fields,
+        notificationEmail,
+        webhookUrl,
+        slackWebhookUrl,
+        googleSheetUrl,
+      });
       setMessage("更新しました");
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "更新に失敗しました");
@@ -60,6 +84,28 @@ export default function EditFormPage() {
     setMessage("共有URLをコピーしました");
     setCopied(true);
     window.setTimeout(() => setCopied(false), 1600);
+  };
+
+  const handleCopyQr = async () => {
+    if (!qrUrl) return;
+    try {
+      const response = await fetch(qrUrl);
+      const blob = await response.blob();
+      const ClipboardItemConstructor = (window as typeof window & {
+        ClipboardItem?: typeof ClipboardItem;
+      }).ClipboardItem;
+      if (!ClipboardItemConstructor || !navigator.clipboard?.write) {
+        throw new Error("Clipboard API not supported");
+      }
+      await navigator.clipboard.write([
+        new ClipboardItemConstructor({ [blob.type || "image/png"]: blob }),
+      ]);
+      setMessage("QR画像をコピーしました");
+      setQrCopied(true);
+      window.setTimeout(() => setQrCopied(false), 1600);
+    } catch (err) {
+      setMessage("QR画像のコピーに失敗しました。ダウンロードをご利用ください。");
+    }
   };
 
   return (
@@ -132,13 +178,31 @@ export default function EditFormPage() {
               <div className="mt-4 rounded-xl border border-dashed border-black/10 bg-[var(--accent)] p-4 text-xs">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="font-semibold text-[var(--primary)]">共有URL</span>
-                  <button
-                    type="button"
-                    onClick={handleCopy}
-                    className="rounded-full border border-black/10 bg-white px-3 py-1 text-[11px] font-semibold text-[var(--primary)]"
-                  >
-                    {copied ? "コピー済み" : "コピー"}
-                  </button>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={handleCopy}
+                      className="rounded-full border border-black/10 bg-white px-3 py-1 text-[11px] font-semibold text-[var(--primary)]"
+                    >
+                      {copied ? "コピー済み" : "URLコピー"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleCopyQr}
+                      className="rounded-full border border-black/10 bg-white px-3 py-1 text-[11px] font-semibold text-[var(--primary)]"
+                    >
+                      {qrCopied ? "QRコピー済み" : "QRコピー"}
+                    </button>
+                    {qrUrl && (
+                      <a
+                        href={qrUrl}
+                        download="survey-qr.png"
+                        className="rounded-full border border-black/10 bg-white px-3 py-1 text-[11px] font-semibold text-[var(--primary)]"
+                      >
+                        QR保存
+                      </a>
+                    )}
+                  </div>
                 </div>
                 <p className="mt-2 break-all text-[var(--muted)]">
                   {shareUrl || "生成中..."}
@@ -146,6 +210,16 @@ export default function EditFormPage() {
                 <p className="mt-2 text-[10px] text-[var(--muted)]">
                   ※ローカル起動中は他の端末からアクセスできません。
                 </p>
+                {qrUrl && (
+                  <div className="mt-3 flex flex-wrap items-center gap-3">
+                    <div className="rounded-xl border border-black/10 bg-white p-2">
+                      <img src={qrUrl} alt="共有用QRコード" className="h-28 w-28" />
+                    </div>
+                    <p className="text-[11px] text-[var(--muted)]">
+                      QRをスキャンすると共有URLを開けます。
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -153,6 +227,59 @@ export default function EditFormPage() {
               <h2 className="text-lg font-semibold">質問項目</h2>
               <div className="mt-4">
                 <FormFieldsEditor fields={fields} onChange={setFields} />
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-black/10 bg-white p-6">
+              <h2 className="text-lg font-semibold">通知・連携</h2>
+              <p className="mt-1 text-xs text-[var(--muted)]">
+                回答通知や外部連携の設定を行います（デモ用の設定項目）。
+              </p>
+              <div className="mt-4 grid gap-4 md:grid-cols-2">
+                <div>
+                  <label className="text-xs font-semibold text-[var(--muted)]">
+                    通知メール
+                  </label>
+                  <input
+                    value={notificationEmail}
+                    onChange={(event) => setNotificationEmail(event.target.value)}
+                    className="mt-1 w-full rounded-xl border border-black/10 px-3 py-2 text-sm"
+                    placeholder="example@company.com"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-[var(--muted)]">
+                    Webhook URL
+                  </label>
+                  <input
+                    value={webhookUrl}
+                    onChange={(event) => setWebhookUrl(event.target.value)}
+                    className="mt-1 w-full rounded-xl border border-black/10 px-3 py-2 text-sm"
+                    placeholder="https://hooks.example.com/..."
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-[var(--muted)]">
+                    Slack Webhook
+                  </label>
+                  <input
+                    value={slackWebhookUrl}
+                    onChange={(event) => setSlackWebhookUrl(event.target.value)}
+                    className="mt-1 w-full rounded-xl border border-black/10 px-3 py-2 text-sm"
+                    placeholder="https://hooks.slack.com/..."
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-[var(--muted)]">
+                    Google Sheets URL
+                  </label>
+                  <input
+                    value={googleSheetUrl}
+                    onChange={(event) => setGoogleSheetUrl(event.target.value)}
+                    className="mt-1 w-full rounded-xl border border-black/10 px-3 py-2 text-sm"
+                    placeholder="https://docs.google.com/spreadsheets/..."
+                  />
+                </div>
               </div>
             </div>
 
