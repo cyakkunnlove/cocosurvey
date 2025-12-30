@@ -210,7 +210,12 @@ export default function PublicSurveyPage() {
       }
       setSubmitted(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "送信に失敗しました。");
+      const message = err instanceof Error ? err.message : "送信に失敗しました。";
+      if (message.toLowerCase().includes("permission")) {
+        setError("このフォームは既に回答済みの可能性があります。");
+      } else {
+        setError(message);
+      }
     }
   };
 

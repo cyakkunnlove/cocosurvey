@@ -250,10 +250,6 @@ export async function createResponse(input: {
   };
 }) {
   const responseRef = doc(db, RESPONSES_COLLECTION, input.responseId);
-  const existing = await getDoc(responseRef);
-  if (existing.exists()) {
-    throw new Error("このフォームは既に回答済みです。");
-  }
   await setDoc(responseRef, {
     formId: input.formId,
     orgId: input.orgId,
