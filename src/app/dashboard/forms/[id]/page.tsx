@@ -21,6 +21,7 @@ export default function EditFormPage() {
   const [fields, setFields] = useState<SurveyField[]>([]);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (!formId) return;
@@ -57,6 +58,8 @@ export default function EditFormPage() {
     if (!shareUrl) return;
     await navigator.clipboard.writeText(shareUrl);
     setMessage("共有URLをコピーしました");
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1600);
   };
 
   return (
@@ -134,11 +137,14 @@ export default function EditFormPage() {
                     onClick={handleCopy}
                     className="rounded-full border border-black/10 bg-white px-3 py-1 text-[11px] font-semibold text-[var(--primary)]"
                   >
-                    コピー
+                    {copied ? "コピー済み" : "コピー"}
                   </button>
                 </div>
                 <p className="mt-2 break-all text-[var(--muted)]">
                   {shareUrl || "生成中..."}
+                </p>
+                <p className="mt-2 text-[10px] text-[var(--muted)]">
+                  ※ローカル起動中は他の端末からアクセスできません。
                 </p>
               </div>
             </div>
